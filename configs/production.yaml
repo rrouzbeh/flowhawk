@@ -1,0 +1,61 @@
+# FlowHawk - Production Configuration
+
+ebpf:
+  xdp:
+    interface: "eth0"
+    mode: "native"  # native for maximum performance
+    enable: true
+  tc:
+    direction: "both"
+    enable: true
+
+monitoring:
+  sampling_rate: 100       # Higher sampling for production
+  flow_timeout: 600s       # 10 minutes
+  max_flows: 5000000       # 5M flows for high-traffic environments
+  ring_buffer_size: 4194304  # 4MB for high throughput
+  metrics_interval: 5s     # Frequent updates
+
+threats:
+  enable: true
+  port_scan:
+    enable: true
+    threshold: 50          # More sensitive in production
+    window: 30s            # Shorter detection window
+  ddos:
+    enable: true
+    pps_threshold: 1000000  # 1M PPS threshold
+    bps_threshold: 10000000000  # 10 Gbps
+    window: 5s             # Quick detection
+  botnet:
+    enable: true
+    c2_domains:
+      - "example-malware.com"
+      - "suspicious-domain.net"
+      - "known-c2.org"
+      - "threat-intel-domain.info"
+    dns_tunneling: true
+    beacon_interval: 60s   # Monitor for regular beaconing
+
+alerts:
+  enable: true
+  webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  email_smtp: "smtp.example.com:587"
+  email_user: "security-alerts@example.com"
+  email_password: "your-secure-password"
+  email_to: "security-team@example.com,admin@example.com"
+  severity_threshold: "medium"
+
+dashboard:
+  listen_addr: ":8080"
+  enable_auth: true        # Enable authentication in production
+  retention_days: 30       # Longer retention for forensics
+  tls_cert: "/etc/ssl/certs/monitor.crt"
+  tls_key: "/etc/ssl/private/monitor.key"
+  update_interval: 1s
+
+logging:
+  level: "info"
+  format: "json"           # Structured logging for production
+  output: "file"
+  file_path: "/var/log/flowhawk.log"

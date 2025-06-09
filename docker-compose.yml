@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  flowhawk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flowhawk
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs/development.yaml:/app/configs/development.yaml:ro
+      - flowhawk-logs:/app/logs
+    environment:
+      - SKIP_ROOT_CHECK=1  # Development mode
+      - GOMAXPROCS=4
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # For production deployment, use this configuration instead:
+  # flowhawk-prod:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   user: "root"
+  #   container_name: flowhawk-prod
+  #   privileged: true
+  #   network_mode: host
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./configs/production.yaml:/app/configs/production.yaml:ro
+  #     - /sys:/sys:ro
+  #     - /proc:/proc:ro
+  #     - flowhawk-logs:/app/logs
+  #   environment:
+  #     - GOMAXPROCS=4
+  #     - LOG_LEVEL=info
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/api/stats"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+
+volumes:
+  flowhawk-logs:

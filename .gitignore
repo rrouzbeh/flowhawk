@@ -1,0 +1,38 @@
+# Coverage files
+coverage*.out
+*.out
+coverage*.html
+
+# TODO file (temporary development notes)
+TODO.md
+
+# Build artifacts
+/build/
+*.o
+*.so
+*.dylib
+
+# Go specific
+*.test
+*.prof
+cpu.prof
+mem.prof
+trace.out
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Reports directory (except README)
+/reports/*.txt
+/reports/*.json
+/reports/*.html

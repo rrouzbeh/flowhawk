@@ -1,0 +1,37 @@
+[Unit]
+Description=FlowHawk Network Security Monitor
+Documentation=https://github.com/alexhraber/flowhawk
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/flowhawk -config /etc/flowhawk/production.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flowhawk
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=false
+ProtectKernelTunables=false
+ProtectKernelModules=false
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+# Environment
+Environment=GOMAXPROCS=4
+
+[Install]
+WantedBy=multi-user.target

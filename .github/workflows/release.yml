@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm
+        go mod download
+
+    - name: Run tests
+      run: make test
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}:latest
+          ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build binaries
+      run: |
+        # Build for multiple platforms
+        GOOS=linux GOARCH=amd64 make build
+        mv build/flowhawk build/flowhawk-linux-amd64
+        
+        GOOS=linux GOARCH=arm64 make build  
+        mv build/flowhawk build/flowhawk-linux-arm64
+        
+        GOOS=darwin GOARCH=amd64 make build
+        mv build/flowhawk build/flowhawk-darwin-amd64
+        
+        GOOS=darwin GOARCH=arm64 make build
+        mv build/flowhawk build/flowhawk-darwin-arm64
+        
+        GOOS=windows GOARCH=amd64 make build
+        mv build/flowhawk build/flowhawk-windows-amd64.exe
+
+    - name: Create checksums
+      run: |
+        cd build
+        sha256sum flowhawk-* > checksums.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          build/flowhawk-*
+          build/checksums.txt
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref_name, '-') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

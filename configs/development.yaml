@@ -1,0 +1,59 @@
+# FlowHawk Configuration
+
+ebpf:
+  xdp:
+    interface: "eth0"
+    mode: "native"  # native, skb, hw
+    enable: true
+  tc:
+    direction: "both"  # ingress, egress, both
+    enable: true
+
+monitoring:
+  sampling_rate: 1000      # 1 in N packets
+  flow_timeout: 300s       # 5 minutes
+  max_flows: 1000000       # Maximum concurrent flows
+  ring_buffer_size: 1048576  # 1MB
+  metrics_interval: 10s    # Metrics collection interval
+
+threats:
+  enable: true
+  port_scan:
+    enable: true
+    threshold: 100         # connections per minute
+    window: 60s            # detection window
+  ddos:
+    enable: true
+    pps_threshold: 100000  # packets per second
+    bps_threshold: 1000000000  # 1 Gbps
+    window: 10s            # detection window
+  botnet:
+    enable: true
+    c2_domains:
+      - "suspicious-domain.com"
+      - "malware-c2.net"
+    dns_tunneling: true
+    beacon_interval: 30s   # Expected beacon interval
+
+alerts:
+  enable: false
+  webhook_url: ""          # Slack/Discord webhook
+  email_smtp: "smtp.gmail.com:587"
+  email_user: ""
+  email_password: ""
+  email_to: ""
+  severity_threshold: "medium"  # low, medium, high, critical
+
+dashboard:
+  listen_addr: ":8080"
+  enable_auth: false
+  retention_days: 7
+  tls_cert: ""             # Optional TLS certificate
+  tls_key: ""              # Optional TLS private key
+  update_interval: 1s      # Real-time update interval
+
+logging:
+  level: "info"            # debug, info, warn, error
+  format: "text"           # json, text
+  output: "stdout"         # stdout, file, syslog
+  file_path: "/var/log/flowhawk.log"
