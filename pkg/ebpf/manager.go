@@ -30,6 +30,8 @@ type PacketEvent struct {
 	DstPort    uint16
 	Protocol   uint8
 	PacketSize uint32
+	PayloadLen uint32
+	Payload    [256]byte
 	Flags      uint32
 	PID        uint32
 	Comm       [16]byte
@@ -80,10 +82,10 @@ const (
 
 // Configuration indices (must match C defines)
 const (
-	ConfigSamplingRate    = 0
-	ConfigPortScanThresh  = 1
-	ConfigDDoSPPSThresh   = 2
-	ConfigEnableThreats   = 3
+	ConfigSamplingRate   = 0
+	ConfigPortScanThresh = 1
+	ConfigDDoSPPSThresh  = 2
+	ConfigEnableThreats  = 3
 )
 
 // Event types (must match C defines)
@@ -98,7 +100,7 @@ const (
 func NewManager(cfg *config.Config) (*Manager, error) {
 	// Determine if we're in mock mode based on environment and privileges
 	isMockMode := os.Geteuid() != 0 || os.Getenv("SKIP_ROOT_CHECK") != ""
-	
+
 	return &Manager{
 		config:     cfg,
 		running:    false,
@@ -119,7 +121,7 @@ func (m *Manager) Load() error {
 		m.iface = iface
 	}
 	m.running = true
-	
+
 	if m.isMockMode {
 		fmt.Printf("Mock eBPF manager loaded on interface %s\n", m.config.EBPF.XDP.Interface)
 	} else {
@@ -162,7 +164,7 @@ func (m *Manager) GetFlowMetrics() (map[FlowKey]FlowMetrics, error) {
 	// Mock implementation - return some sample data
 	flows := make(map[FlowKey]FlowMetrics)
 	now := uint64(time.Now().UnixNano())
-	
+
 	// Add a sample flow
 	key := FlowKey{
 		SrcIP:    0xC0A80164, // 192.168.1.100
@@ -180,7 +182,7 @@ func (m *Manager) GetFlowMetrics() (map[FlowKey]FlowMetrics, error) {
 		TCPState:  1,    // ESTABLISHED
 	}
 	flows[key] = metrics
-	
+
 	return flows, nil
 }
 
@@ -191,7 +193,7 @@ func (m *Manager) GetStatistics() (map[int]uint64, error) {
 	}
 
 	stats := make(map[int]uint64)
-	
+
 	if m.isMockMode {
 		// Static mock data for development
 		stats[StatPacketsReceived] = 12345
@@ -202,26 +204,25 @@ func (m *Manager) GetStatistics() (map[int]uint64, error) {
 	} else {
 		// Simulate realistic real-time data for production mode
 		elapsed := time.Since(m.startTime).Seconds()
-		
+
 		// Simulate realistic packet rates (varies over time)
-		baseRate := 50000.0 // Base packets per second
+		baseRate := 50000.0                           // Base packets per second
 		variation := 1.0 + 0.3*math.Sin(elapsed/60.0) // ±30% variation over time
 		packetsPerSec := baseRate * variation
 		totalPackets := uint64(packetsPerSec * elapsed)
-		
+
 		// Realistic drop rate (0.1% - 0.5%)
 		dropRate := 0.001 + 0.004*rand.Float64()
-		
+
 		stats[StatPacketsReceived] = totalPackets
 		stats[StatPacketsDropped] = uint64(float64(totalPackets) * dropRate)
-		stats[StatBytesReceived] = totalPackets * uint64(200+rand.Intn(1300)) // 200-1500 byte packets
-		stats[StatFlowsActive] = uint64(500 + rand.Intn(1000)) // 500-1500 active flows
+		stats[StatBytesReceived] = totalPackets * uint64(200+rand.Intn(1300))   // 200-1500 byte packets
+		stats[StatFlowsActive] = uint64(500 + rand.Intn(1000))                  // 500-1500 active flows
 		stats[StatThreatsDetected] = uint64(elapsed/300) + uint64(rand.Intn(3)) // ~1 every 5 minutes + random
 	}
-	
+
 	return stats, nil
 }
-
 
 // GetStats returns current eBPF statistics
 func (m *Manager) GetStats() *Stats {

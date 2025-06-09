@@ -19,6 +19,7 @@ type MockProcessor struct {
 	stats         models.SystemMetrics
 	topFlows      []models.FlowMetrics
 	recentThreats []models.ThreatEvent
+	recentHTTP    []models.HTTPEvent
 	alertStats    map[string]interface{}
 	activeRules   []models.ThreatRule
 }
@@ -39,6 +40,13 @@ func (m *MockProcessor) GetRecentThreats(limit int) []models.ThreatEvent {
 		return m.recentThreats[:limit]
 	}
 	return m.recentThreats
+}
+
+func (m *MockProcessor) GetRecentHTTP(limit int) []models.HTTPEvent {
+	if len(m.recentHTTP) > limit {
+		return m.recentHTTP[:limit]
+	}
+	return m.recentHTTP
 }
 
 func (m *MockProcessor) GetAlertStats() interface{} {
@@ -122,13 +130,26 @@ func SetupTestDashboard() (*dashboard.Dashboard, string, *MockProcessor) {
 				ProcessName: "",
 			},
 		},
+		recentHTTP: []models.HTTPEvent{
+			{
+				Timestamp: time.Now(),
+				SrcIP:     net.ParseIP("192.168.1.1"),
+				DstIP:     net.ParseIP("10.0.0.1"),
+				SrcPort:   12345,
+				DstPort:   80,
+				Method:    "GET",
+				URI:       "/index.html",
+				Host:      "example.com",
+				Direction: "request",
+			},
+		},
 		alertStats: map[string]interface{}{
-			"total_alerts":   45,
-			"alerts_today":   12,
-			"alerts_sent":    43,
-			"alerts_failed":  2,
-			"last_alert":     time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
-			"channel_stats":  map[string]int{"webhook": 25, "email": 18, "slack": 2},
+			"total_alerts":  45,
+			"alerts_today":  12,
+			"alerts_sent":   43,
+			"alerts_failed": 2,
+			"last_alert":    time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
+			"channel_stats": map[string]int{"webhook": 25, "email": 18, "slack": 2},
 		},
 		activeRules: []models.ThreatRule{
 			{
@@ -446,11 +467,12 @@ func TestDashboardAPI_ConcurrentRequests(t *testing.T) {
 func TestDashboardAPI_ErrorHandling(t *testing.T) {
 	// Test with processor that returns empty data
 	errorProcessor := &MockProcessor{
-		stats:         models.SystemMetrics{}, // Empty stats
-		topFlows:      []models.FlowMetrics{}, // Empty flows
-		recentThreats: []models.ThreatEvent{}, // Empty threats
+		stats:         models.SystemMetrics{},   // Empty stats
+		topFlows:      []models.FlowMetrics{},   // Empty flows
+		recentThreats: []models.ThreatEvent{},   // Empty threats
+		recentHTTP:    []models.HTTPEvent{},     // Empty HTTP events
 		alertStats:    map[string]interface{}{}, // Empty alert stats
-		activeRules:   []models.ThreatRule{},   // Empty rules
+		activeRules:   []models.ThreatRule{},    // Empty rules
 	}
 
 	// Find available port

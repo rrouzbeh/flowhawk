@@ -19,6 +19,7 @@ type MockProcessor struct {
 	stats         models.SystemMetrics
 	topFlows      []models.FlowMetrics
 	recentThreats []models.ThreatEvent
+	recentHTTP    []models.HTTPEvent
 	alertStats    interface{}
 	activeRules   []models.ThreatRule
 }
@@ -39,6 +40,13 @@ func (m *MockProcessor) GetRecentThreats(limit int) []models.ThreatEvent {
 		return m.recentThreats[:limit]
 	}
 	return m.recentThreats
+}
+
+func (m *MockProcessor) GetRecentHTTP(limit int) []models.HTTPEvent {
+	if len(m.recentHTTP) > limit {
+		return m.recentHTTP[:limit]
+	}
+	return m.recentHTTP
 }
 
 func (m *MockProcessor) GetAlertStats() interface{} {
@@ -207,12 +215,12 @@ func TestAPIEndpoints(t *testing.T) {
 			},
 		},
 		alertStats: map[string]interface{}{
-			"total_alerts":   5,
-			"alerts_today":   2,
-			"alerts_sent":    4,
-			"alerts_failed":  1,
-			"last_alert":     time.Now().Format(time.RFC3339),
-			"channel_stats":  map[string]int{"webhook": 3, "email": 1},
+			"total_alerts":  5,
+			"alerts_today":  2,
+			"alerts_sent":   4,
+			"alerts_failed": 1,
+			"last_alert":    time.Now().Format(time.RFC3339),
+			"channel_stats": map[string]int{"webhook": 3, "email": 1},
 		},
 		activeRules: []models.ThreatRule{
 			{
@@ -310,9 +318,9 @@ func TestHTTPHandlers(t *testing.T) {
 			},
 		},
 		alertStats: map[string]interface{}{
-			"total_alerts": 5,
-			"alerts_today": 2,
-			"alerts_sent":  4,
+			"total_alerts":  5,
+			"alerts_today":  2,
+			"alerts_sent":   4,
 			"alerts_failed": 1,
 		},
 		activeRules: []models.ThreatRule{
@@ -509,6 +517,7 @@ func TestDashboardStateStructure(t *testing.T) {
 		Metrics:       mockProcessor.GetStats(),
 		TopFlows:      mockProcessor.GetTopFlows(10),
 		RecentThreats: mockProcessor.GetRecentThreats(10),
+		RecentHTTP:    mockProcessor.GetRecentHTTP(10),
 		ActiveRules:   mockProcessor.GetActiveRules(),
 		Timestamp:     time.Now(),
 	}
@@ -524,6 +533,11 @@ func TestDashboardStateStructure(t *testing.T) {
 
 	if len(dashboardState.RecentThreats) != 1 {
 		t.Errorf("Expected 1 threat, got %d", len(dashboardState.RecentThreats))
+	}
+
+	if len(dashboardState.RecentHTTP) != 0 {
+		// default mock has none
+		t.Errorf("Expected 0 http events, got %d", len(dashboardState.RecentHTTP))
 	}
 
 	if len(dashboardState.ActiveRules) != 1 {
