@@ -1,5 +1,5 @@
 # FlowHawk Network Security Monitor - Multi-stage Docker Image
-FROM golang:1.24-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates make
@@ -31,7 +31,7 @@ RUN addgroup -g 1001 -S appgroup && \
 # Create directories
 RUN mkdir -p /app/configs /app/logs
 COPY --from=builder /app/flowhawk /app/
-COPY configs/flowhawk.yaml /app/configs/
+COPY configs/development.yaml /app/configs/
 
 # Change ownership
 RUN chown -R appuser:appgroup /app
