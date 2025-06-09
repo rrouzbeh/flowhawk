@@ -90,7 +90,7 @@ open http://localhost:8080
 - ✅ **Isolated**: Cannot affect host system  
 - ✅ **Functional**: Complete UI/API testing
 - ✅ **Realistic**: Dynamic simulated data
-- ❌ **Limited**: No real network monitoring
+- ⚠️ **Limited**: No real network monitoring
 
 ---
 
