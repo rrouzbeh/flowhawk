@@ -310,7 +310,7 @@ make dev-setup
 FlowHawk includes GitHub Actions workflows for:
 
 - **Continuous Integration** (`.github/workflows/ci.yml`)
-  - Multi-version Go testing (1.21, 1.22)
+  - Multi-version Go testing (1.23+)
   - Linting with golangci-lint
   - Security scanning with Gosec and Trivy
   - Code coverage reporting to Codecov
