@@ -12,7 +12,7 @@
 
 ## Modern Network Security Platform
 
-**FlowHawk** is a **modern open-source eBPF-powered Network Security Monitor** engineered for mission-critical infrastructure protection. Leveraging advanced kernel-space packet processing and machine learning threat detection, FlowHawk delivers unparalleled visibility into network traffic patterns and security anomalies.
+**FlowHawk** is a **modern open-source eBPF-powered Network Security Monitoring Platform** engineered for mission-critical infrastructure protection. Leveraging advanced kernel-space packet processing and machine learning threat detection, FlowHawk delivers unparalleled visibility into network traffic patterns and security anomalies.
 
 > **"Strike fast, see everything. FlowHawk soars above your network, detecting threats with the precision of a hunting raptor."**
 
