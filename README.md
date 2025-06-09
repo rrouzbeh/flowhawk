@@ -62,8 +62,8 @@
 
 ### Hunt Begins
 
+Build FlowHawk
 ```bash
-# Build FlowHawk
 docker build -t flowhawk:latest .
 ```
 
@@ -74,15 +74,14 @@ FlowHawk operates in two distinct hunting modes:
 ### 🟢 **Training Mode** (Recommended)
 *Safe for development and demonstrations*
 
+Launch in training mode (safe, simulated data) and access the eyrie (dashboard)
 ```bash
-# Launch in training mode (safe, simulated data)
 docker run -d \
   --name flowhawk \
   -p 8080:8080 \
   -e SKIP_ROOT_CHECK=1 \
   flowhawk:latest
 
-# Access the eyrie (dashboard)
 open http://localhost:8080
 ```
 
@@ -123,8 +122,8 @@ open http://localhost:8080
 > - You need real network monitoring (not just testing)
 > - You're running in a controlled, isolated environment
 
+⚠️ SECURITY WARNING: Unleash the hawk responsibly! ⚠️
 ```bash
-# ⚠️ SECURITY WARNING: Unleash the hawk responsibly! ⚠️
 docker run -d \
   --name flowhawk \
   --privileged \
@@ -144,8 +143,8 @@ docker run -d \
 If you must use hunt mode, implement these hawk-training measures:
 
 ### Minimal Privileges
+Use specific capabilities instead of --privileged
 ```bash
-# Use specific capabilities instead of --privileged
 docker run -d \
   --name flowhawk \
   --cap-add=BPF \
@@ -160,8 +159,8 @@ docker run -d \
 ```
 
 ### Resource Constraints
+Limit the hawk's appetite
 ```bash
-# Limit the hawk's appetite
 docker run -d \
   --name flowhawk \
   --memory=512m \
@@ -264,23 +263,33 @@ dashboard:
 
 FlowHawk includes comprehensive CI/CD workflows and development tools:
 
+Set up development environment (includes git hooks)
 ```bash
-# Set up development environment (includes git hooks)
 make dev-setup
+```
 
-# Run tests
+Run tests
+```bash
 make test
+```
 
-# Run all tests including integration
+Run all tests including integration
+```bash
 make test-all
+```
 
-# Run tests with coverage
+Run tests with coverage
+```bash
 make test-coverage
+```
 
-# Run linting
+Run linting
+```bash
 make lint
+```
 
-# Format code
+Format code
+```bash
 make format
 ```
 
@@ -294,14 +303,18 @@ FlowHawk includes pre-commit hooks that automatically:
 - Check for common issues (debug statements, large files)
 
 To set up git hooks:
+Initialize git repository (if not done)
 ```bash
-# Initialize git repository (if not done)
 git init
+```
 
-# Set up git hooks
+Set up git hooks
+```bash
 ./scripts/setup-git-hooks.sh
+```
 
-# Or use make target
+Or use make target
+```bash
 make dev-setup
 ```
 
@@ -340,26 +353,34 @@ Coverage targets:
 - Critical security components: 95%+ statement coverage
 
 ### Building from Source
+Prepare the env
 ```bash
-# Prepare the nest
 go mod download
+```
 
-# Build the hawk
+Build the image
+```bash
 go build -o flowhawk ./cmd/flowhawk
+```
 
-# Release the hawk
+Release the hawk
+```bash
 sudo ./flowhawk -config ./configs/development.yaml
 ```
 
 ### Hunt Commands
+Show version
 ```bash
-# Show version
 flowhawk -version
+```
 
-# Custom interface
+Custom interface
+```bash
 flowhawk -interface eth1
+```
 
-# Custom config
+Custom config
+```bash
 flowhawk -config /etc/flowhawk/config.yaml
 ```
 
