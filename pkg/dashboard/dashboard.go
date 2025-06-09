@@ -19,6 +19,7 @@ type ProcessorInterface interface {
 	GetStats() models.SystemMetrics
 	GetTopFlows(limit int) []models.FlowMetrics
 	GetRecentThreats(limit int) []models.ThreatEvent
+	GetRecentHTTP(limit int) []models.HTTPEvent
 	GetAlertStats() interface{}
 	GetActiveRules() []models.ThreatRule
 }
@@ -47,27 +48,28 @@ func New(cfg *config.Config, proc ProcessorInterface) (*Dashboard, error) {
 // Start starts the dashboard server
 func (d *Dashboard) Start(ctx context.Context) error {
 	router := mux.NewRouter()
-	
+
 	// API routes
 	api := router.PathPrefix("/api").Subrouter()
 	api.HandleFunc("/stats", d.handleStats).Methods("GET")
 	api.HandleFunc("/flows", d.handleFlows).Methods("GET")
 	api.HandleFunc("/threats", d.handleThreats).Methods("GET")
+	api.HandleFunc("/http", d.handleHTTP).Methods("GET")
 	api.HandleFunc("/dashboard", d.handleDashboard).Methods("GET")
 	api.HandleFunc("/alerts", d.handleAlerts).Methods("GET")
-	
+
 	// WebSocket endpoint for real-time updates
 	router.HandleFunc("/ws", d.handleWebSocket)
-	
+
 	// Static files (basic HTML interface)
 	router.HandleFunc("/", d.handleIndex).Methods("GET")
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))
-	
+
 	d.server = &http.Server{
 		Addr:    d.config.Dashboard.ListenAddr,
 		Handler: router,
 	}
-	
+
 	// Start server in goroutine
 	go func() {
 		log.Printf("Dashboard server starting on %s", d.config.Dashboard.ListenAddr)
@@ -75,7 +77,7 @@ func (d *Dashboard) Start(ctx context.Context) error {
 			log.Printf("Dashboard server error: %v", err)
 		}
 	}()
-	
+
 	return nil
 }
 
@@ -239,7 +241,7 @@ func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
     </script>
 </body>
 </html>`
-	
+
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
 }
@@ -247,7 +249,7 @@ func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
 // handleStats returns system statistics
 func (d *Dashboard) handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := d.processor.GetStats()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
 }
@@ -255,7 +257,7 @@ func (d *Dashboard) handleStats(w http.ResponseWriter, r *http.Request) {
 // handleFlows returns top network flows
 func (d *Dashboard) handleFlows(w http.ResponseWriter, r *http.Request) {
 	flows := d.processor.GetTopFlows(20)
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(flows)
 }
@@ -263,9 +265,17 @@ func (d *Dashboard) handleFlows(w http.ResponseWriter, r *http.Request) {
 // handleThreats returns recent threats
 func (d *Dashboard) handleThreats(w http.ResponseWriter, r *http.Request) {
 	threats := d.processor.GetRecentThreats(20)
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(threats)
+}
+
+// handleHTTP returns recent HTTP events
+func (d *Dashboard) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	events := d.processor.GetRecentHTTP(20)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(events)
 }
 
 // handleDashboard returns complete dashboard state
@@ -274,9 +284,10 @@ func (d *Dashboard) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Metrics:       d.processor.GetStats(),
 		TopFlows:      d.processor.GetTopFlows(10),
 		RecentThreats: d.processor.GetRecentThreats(10),
+		RecentHTTP:    d.processor.GetRecentHTTP(10),
 		Timestamp:     time.Now(),
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dashboardState)
 }
@@ -284,7 +295,7 @@ func (d *Dashboard) handleDashboard(w http.ResponseWriter, r *http.Request) {
 // handleAlerts returns alert statistics
 func (d *Dashboard) handleAlerts(w http.ResponseWriter, r *http.Request) {
 	alertStats := d.processor.GetAlertStats()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(alertStats)
 }
@@ -297,27 +308,28 @@ func (d *Dashboard) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	
+
 	log.Printf("WebSocket client connected: %s", r.RemoteAddr)
-	
+
 	// Send initial data
 	dashboardState := models.DashboardState{
 		Metrics:       d.processor.GetStats(),
 		TopFlows:      d.processor.GetTopFlows(10),
 		RecentThreats: d.processor.GetRecentThreats(10),
+		RecentHTTP:    d.processor.GetRecentHTTP(10),
 		ActiveRules:   d.processor.GetActiveRules(),
 		Timestamp:     time.Now(),
 	}
-	
+
 	if err := conn.WriteJSON(dashboardState); err != nil {
 		log.Printf("WebSocket write error: %v", err)
 		return
 	}
-	
+
 	// Send updates every second
 	ticker := time.NewTicker(d.config.Dashboard.UpdateInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -325,10 +337,11 @@ func (d *Dashboard) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				Metrics:       d.processor.GetStats(),
 				TopFlows:      d.processor.GetTopFlows(10),
 				RecentThreats: d.processor.GetRecentThreats(10),
+				RecentHTTP:    d.processor.GetRecentHTTP(10),
 				ActiveRules:   d.processor.GetActiveRules(),
 				Timestamp:     time.Now(),
 			}
-			
+
 			if err := conn.WriteJSON(dashboardState); err != nil {
 				log.Printf("WebSocket write error: %v", err)
 				return

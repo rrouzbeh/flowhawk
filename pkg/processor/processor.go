@@ -12,6 +12,7 @@ import (
 	"flowhawk/pkg/alerts"
 	"flowhawk/pkg/config"
 	"flowhawk/pkg/ebpf"
+	"flowhawk/pkg/protocols"
 	"flowhawk/pkg/threats"
 )
 
@@ -19,31 +20,33 @@ import (
 type EventProcessor struct {
 	config      *config.Config
 	ebpfManager EBPFManagerInterface
-	
+
 	// Threat detection engines
-	threatEngine    *threats.ThreatEngine
-	mlDetector      *threats.MLThreatDetector
-	
+	threatEngine *threats.ThreatEngine
+	mlDetector   *threats.MLThreatDetector
+	httpParser   *protocols.Manager
+
 	// Alert management
-	alertManager    *alerts.AlertManager
-	
+	alertManager *alerts.AlertManager
+
 	// Event channels
-	packetChan   chan *models.PacketEvent
-	threatChan   chan *models.ThreatEvent
-	
+	packetChan chan *models.PacketEvent
+	threatChan chan *models.ThreatEvent
+
 	// Statistics
-	stats       *models.SystemMetrics
-	statsMutex  sync.RWMutex
-	
+	stats      *models.SystemMetrics
+	statsMutex sync.RWMutex
+
 	// Flow tracking
-	flows       map[string]*models.FlowMetrics
-	flowsMutex  sync.RWMutex
-	
+	flows      map[string]*models.FlowMetrics
+	flowsMutex sync.RWMutex
+
 	// Recent events for dashboard
 	recentPackets []models.PacketEvent
 	recentThreats []models.ThreatEvent
+	recentHTTP    []models.HTTPEvent
 	eventsMutex   sync.RWMutex
-	
+
 	// Control
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -61,19 +64,21 @@ type EBPFManagerInterface interface {
 // New creates a new event processor
 func New(cfg *config.Config, manager EBPFManagerInterface) (*EventProcessor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Initialize threat detection engines
 	threatEngine := threats.NewThreatEngine(cfg)
 	mlDetector := threats.NewMLThreatDetector()
-	
+
 	// Initialize alert manager
 	alertManager := alerts.NewAlertManager(cfg)
-	
+	httpParser := protocols.NewManager()
+
 	return &EventProcessor{
 		config:        cfg,
 		ebpfManager:   manager,
 		threatEngine:  threatEngine,
 		mlDetector:    mlDetector,
+		httpParser:    httpParser,
 		alertManager:  alertManager,
 		packetChan:    make(chan *models.PacketEvent, 10000),
 		threatChan:    make(chan *models.ThreatEvent, 1000),
@@ -81,6 +86,7 @@ func New(cfg *config.Config, manager EBPFManagerInterface) (*EventProcessor, err
 		flows:         make(map[string]*models.FlowMetrics),
 		recentPackets: make([]models.PacketEvent, 0, 1000),
 		recentThreats: make([]models.ThreatEvent, 0, 100),
+		recentHTTP:    make([]models.HTTPEvent, 0, 100),
 		ctx:           ctx,
 		cancel:        cancel,
 	}, nil
@@ -89,18 +95,18 @@ func New(cfg *config.Config, manager EBPFManagerInterface) (*EventProcessor, err
 // Start begins processing events from eBPF
 func (p *EventProcessor) Start(ctx context.Context) error {
 	p.ctx = ctx
-	
+
 	// Start event readers
 	p.wg.Add(3)
 	go p.packetEventReader()
 	go p.securityEventReader()
 	go p.metricsCollector()
-	
+
 	// Start event processors
 	p.wg.Add(2)
 	go p.packetProcessor()
 	go p.threatProcessor()
-	
+
 	log.Println("Event processor started")
 	return nil
 }
@@ -108,10 +114,10 @@ func (p *EventProcessor) Start(ctx context.Context) error {
 // packetEventReader reads packet events from eBPF ring buffer
 func (p *EventProcessor) packetEventReader() {
 	defer p.wg.Done()
-	
+
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -122,10 +128,10 @@ func (p *EventProcessor) packetEventReader() {
 				log.Printf("Error reading packet events: %v", err)
 				continue
 			}
-			
+
 			for _, event := range events {
 				packetEvent := p.convertPacketEvent(&event)
-				
+
 				select {
 				case p.packetChan <- packetEvent:
 				case <-p.ctx.Done():
@@ -144,10 +150,10 @@ func (p *EventProcessor) packetEventReader() {
 // securityEventReader reads security events from eBPF ring buffer
 func (p *EventProcessor) securityEventReader() {
 	defer p.wg.Done()
-	
+
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -158,10 +164,10 @@ func (p *EventProcessor) securityEventReader() {
 				log.Printf("Error reading security events: %v", err)
 				continue
 			}
-			
+
 			for _, event := range events {
 				threatEvent := p.convertSecurityEvent(&event)
-				
+
 				select {
 				case p.threatChan <- threatEvent:
 				case <-p.ctx.Done():
@@ -178,10 +184,10 @@ func (p *EventProcessor) securityEventReader() {
 // metricsCollector periodically collects metrics from eBPF maps
 func (p *EventProcessor) metricsCollector() {
 	defer p.wg.Done()
-	
+
 	ticker := time.NewTicker(p.config.Monitoring.MetricsInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -201,13 +207,13 @@ func (p *EventProcessor) collectMetrics() error {
 	if err != nil {
 		return fmt.Errorf("failed to get statistics: %w", err)
 	}
-	
+
 	// Get flow metrics
 	flows, err := p.ebpfManager.GetFlowMetrics()
 	if err != nil {
 		return fmt.Errorf("failed to get flow metrics: %w", err)
 	}
-	
+
 	// Update system metrics
 	p.updateStats(func(s *models.SystemMetrics) {
 		s.Timestamp = time.Now()
@@ -216,24 +222,24 @@ func (p *EventProcessor) collectMetrics() error {
 		s.BytesReceived = stats[ebpf.StatBytesReceived]
 		s.ActiveFlows = uint64(len(flows))
 		s.ThreatsDetected = stats[ebpf.StatThreatsDetected]
-		
+
 		// Calculate rates (simplified)
 		if s.PacketsReceived > 0 {
 			s.PacketsPerSec = float64(s.PacketsReceived) / time.Since(s.Timestamp).Seconds()
 			s.BytesPerSec = float64(s.BytesReceived) / time.Since(s.Timestamp).Seconds()
 		}
 	})
-	
+
 	// Update flow cache
 	p.updateFlows(flows)
-	
+
 	return nil
 }
 
 // packetProcessor processes packet events
 func (p *EventProcessor) packetProcessor() {
 	defer p.wg.Done()
-	
+
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -247,7 +253,7 @@ func (p *EventProcessor) packetProcessor() {
 // threatProcessor processes threat events
 func (p *EventProcessor) threatProcessor() {
 	defer p.wg.Done()
-	
+
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -267,13 +273,25 @@ func (p *EventProcessor) processPacketEvent(event *models.PacketEvent) {
 		p.recentPackets = p.recentPackets[1:]
 	}
 	p.eventsMutex.Unlock()
-	
+
 	// Update statistics
 	p.updateStats(func(s *models.SystemMetrics) {
 		s.PacketsReceived++
 		s.BytesReceived += uint64(event.PacketSize)
 	})
-	
+
+	// Protocol parsers (HTTP, etc.)
+	if parsed := p.httpParser.ParsePacket(event); len(parsed) > 0 {
+		p.eventsMutex.Lock()
+		for _, h := range parsed {
+			p.recentHTTP = append(p.recentHTTP, *h)
+			if len(p.recentHTTP) > 100 {
+				p.recentHTTP = p.recentHTTP[1:]
+			}
+		}
+		p.eventsMutex.Unlock()
+	}
+
 	// Run threat detection algorithms
 	if p.config.Threats.Enable {
 		// Rule-based threat detection
@@ -286,7 +304,7 @@ func (p *EventProcessor) processPacketEvent(event *models.PacketEvent) {
 				log.Printf("Threat channel full, dropping threat: %s", threat.Description)
 			}
 		}
-		
+
 		// ML-based anomaly detection
 		if mlThreat := p.mlDetector.AnalyzePacketAnomaly(event); mlThreat != nil {
 			select {
@@ -305,7 +323,7 @@ func (p *EventProcessor) processThreatEvent(event *models.ThreatEvent) {
 		event.SrcIP.String(), event.SrcPort,
 		event.DstIP.String(), event.DstPort,
 		event.Description)
-	
+
 	// Add to recent threats (for dashboard)
 	p.eventsMutex.Lock()
 	p.recentThreats = append(p.recentThreats, *event)
@@ -313,12 +331,12 @@ func (p *EventProcessor) processThreatEvent(event *models.ThreatEvent) {
 		p.recentThreats = p.recentThreats[1:]
 	}
 	p.eventsMutex.Unlock()
-	
+
 	// Update threat counter
 	p.updateStats(func(s *models.SystemMetrics) {
 		s.ThreatsDetected++
 	})
-	
+
 	// Send alerts through alert manager
 	if p.config.Alerts.Enable {
 		p.alertManager.SendAlert(event)
@@ -329,15 +347,15 @@ func (p *EventProcessor) processThreatEvent(event *models.ThreatEvent) {
 func (p *EventProcessor) Close() error {
 	p.cancel()
 	p.wg.Wait()
-	
+
 	close(p.packetChan)
 	close(p.threatChan)
-	
+
 	// Close alert manager
 	if p.alertManager != nil {
 		p.alertManager.Close()
 	}
-	
+
 	return nil
 }
 
@@ -351,6 +369,7 @@ func (p *EventProcessor) convertPacketEvent(event *ebpf.PacketEvent) *models.Pac
 		DstPort:     event.DstPort,
 		Protocol:    models.Protocol(event.Protocol),
 		PacketSize:  event.PacketSize,
+		Payload:     event.Payload[:event.PayloadLen],
 		Flags:       event.Flags,
 		ProcessID:   event.PID,
 		ProcessName: event.CommString(),
@@ -360,7 +379,7 @@ func (p *EventProcessor) convertPacketEvent(event *ebpf.PacketEvent) *models.Pac
 // convertSecurityEvent converts eBPF security event to internal model
 func (p *EventProcessor) convertSecurityEvent(event *ebpf.SecurityEvent) *models.ThreatEvent {
 	threatType := models.ThreatType(event.EventType - 1) // eBPF uses 1-based indexing
-	
+
 	var description string
 	switch event.EventType {
 	case ebpf.EventPortScan:
@@ -374,7 +393,7 @@ func (p *EventProcessor) convertSecurityEvent(event *ebpf.SecurityEvent) *models
 	default:
 		description = "Unknown threat detected"
 	}
-	
+
 	return &models.ThreatEvent{
 		ID:          fmt.Sprintf("threat-%d-%d", event.Timestamp, event.SrcIP),
 		Type:        threatType,
@@ -407,10 +426,10 @@ func (p *EventProcessor) updateStats(updater func(*models.SystemMetrics)) {
 func (p *EventProcessor) updateFlows(ebpfFlows map[ebpf.FlowKey]ebpf.FlowMetrics) {
 	p.flowsMutex.Lock()
 	defer p.flowsMutex.Unlock()
-	
+
 	// Clear old flows
 	p.flows = make(map[string]*models.FlowMetrics)
-	
+
 	// Convert eBPF flows to internal model
 	for key, metrics := range ebpfFlows {
 		flowKey := models.FlowKey{
@@ -420,7 +439,7 @@ func (p *EventProcessor) updateFlows(ebpfFlows map[ebpf.FlowKey]ebpf.FlowMetrics
 			DstPort:  key.DstPort,
 			Protocol: models.Protocol(key.Protocol),
 		}
-		
+
 		flowMetrics := &models.FlowMetrics{
 			Key:       flowKey,
 			Packets:   metrics.Packets,
@@ -429,15 +448,15 @@ func (p *EventProcessor) updateFlows(ebpfFlows map[ebpf.FlowKey]ebpf.FlowMetrics
 			LastSeen:  time.Unix(0, int64(metrics.LastSeen)),
 			Flags:     metrics.Flags,
 		}
-		
+
 		// Use string key for map
-		flowKeyStr := fmt.Sprintf("%s:%d->%s:%d/%d", 
+		flowKeyStr := fmt.Sprintf("%s:%d->%s:%d/%d",
 			flowKey.SrcIP.String(), flowKey.SrcPort,
 			flowKey.DstIP.String(), flowKey.DstPort,
 			flowKey.Protocol)
-		
+
 		p.flows[flowKeyStr] = flowMetrics
-		
+
 		// Run ML flow anomaly detection
 		if p.config.Threats.Enable {
 			if mlThreat := p.mlDetector.AnalyzeFlowAnomaly(flowMetrics); mlThreat != nil {
@@ -470,33 +489,44 @@ func (p *EventProcessor) GetStats() models.SystemMetrics {
 func (p *EventProcessor) GetTopFlows(limit int) []models.FlowMetrics {
 	p.flowsMutex.RLock()
 	defer p.flowsMutex.RUnlock()
-	
+
 	flows := make([]models.FlowMetrics, 0, len(p.flows))
 	for _, flow := range p.flows {
 		flows = append(flows, *flow)
 	}
-	
+
 	// Sort by bytes descending (highest first)
 	sort.Slice(flows, func(i, j int) bool {
 		return flows[i].Bytes > flows[j].Bytes
 	})
-	
+
 	if len(flows) > limit {
 		flows = flows[:limit]
 	}
-	
+
 	return flows
 }
 
 func (p *EventProcessor) GetRecentThreats(limit int) []models.ThreatEvent {
 	p.eventsMutex.RLock()
 	defer p.eventsMutex.RUnlock()
-	
+
 	if len(p.recentThreats) > limit {
 		return p.recentThreats[len(p.recentThreats)-limit:]
 	}
-	
+
 	return append([]models.ThreatEvent(nil), p.recentThreats...)
+}
+
+func (p *EventProcessor) GetRecentHTTP(limit int) []models.HTTPEvent {
+	p.eventsMutex.RLock()
+	defer p.eventsMutex.RUnlock()
+
+	if len(p.recentHTTP) > limit {
+		return p.recentHTTP[len(p.recentHTTP)-limit:]
+	}
+
+	return append([]models.HTTPEvent(nil), p.recentHTTP...)
 }
 
 // GetAlertStats returns current alert statistics

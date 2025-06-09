@@ -34,8 +34,8 @@ func (s Severity) String() string {
 type Protocol uint8
 
 const (
-	ProtocolTCP Protocol = 6
-	ProtocolUDP Protocol = 17
+	ProtocolTCP  Protocol = 6
+	ProtocolUDP  Protocol = 17
 	ProtocolICMP Protocol = 1
 )
 
@@ -61,6 +61,7 @@ type PacketEvent struct {
 	DstPort     uint16    `json:"dst_port"`
 	Protocol    Protocol  `json:"protocol"`
 	PacketSize  uint32    `json:"packet_size"`
+	Payload     []byte    `json:"payload,omitempty"`
 	Flags       uint32    `json:"flags"`
 	ProcessID   uint32    `json:"process_id"`
 	ProcessName string    `json:"process_name"`
@@ -121,19 +122,35 @@ func (t ThreatType) String() string {
 
 // ThreatEvent represents a detected security threat
 type ThreatEvent struct {
-	ID          string     `json:"id"`
-	Type        ThreatType `json:"type"`
-	Severity    Severity   `json:"severity"`
-	Timestamp   time.Time  `json:"timestamp"`
-	SrcIP       net.IP     `json:"src_ip"`
-	DstIP       net.IP     `json:"dst_ip"`
-	SrcPort     uint16     `json:"src_port"`
-	DstPort     uint16     `json:"dst_port"`
-	Protocol    Protocol   `json:"protocol"`
-	Description string     `json:"description"`
+	ID          string                 `json:"id"`
+	Type        ThreatType             `json:"type"`
+	Severity    Severity               `json:"severity"`
+	Timestamp   time.Time              `json:"timestamp"`
+	SrcIP       net.IP                 `json:"src_ip"`
+	DstIP       net.IP                 `json:"dst_ip"`
+	SrcPort     uint16                 `json:"src_port"`
+	DstPort     uint16                 `json:"dst_port"`
+	Protocol    Protocol               `json:"protocol"`
+	Description string                 `json:"description"`
 	Metadata    map[string]interface{} `json:"metadata"`
-	ProcessID   uint32     `json:"process_id,omitempty"`
-	ProcessName string     `json:"process_name,omitempty"`
+	ProcessID   uint32                 `json:"process_id,omitempty"`
+	ProcessName string                 `json:"process_name,omitempty"`
+}
+
+// HTTPEvent represents an HTTP request or response (Zeek-style fields)
+type HTTPEvent struct {
+	Timestamp  time.Time `json:"ts"`
+	SrcIP      net.IP    `json:"id.orig_h"`
+	SrcPort    uint16    `json:"id.orig_p"`
+	DstIP      net.IP    `json:"id.resp_h"`
+	DstPort    uint16    `json:"id.resp_p"`
+	Method     string    `json:"method,omitempty"`
+	Host       string    `json:"host,omitempty"`
+	URI        string    `json:"uri,omitempty"`
+	StatusCode int       `json:"status_code,omitempty"`
+	UserAgent  string    `json:"user_agent,omitempty"`
+	Version    string    `json:"version,omitempty"`
+	Direction  string    `json:"direction"` // request or response
 }
 
 // AlertAction represents what action to take when a threat is detected
@@ -163,16 +180,16 @@ func (a AlertAction) String() string {
 
 // ThreatRule defines how to detect and respond to a specific threat
 type ThreatRule struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Type        ThreatType  `json:"type"`
-	Severity    Severity    `json:"severity"`
-	Action      AlertAction `json:"action"`
-	Enabled     bool        `json:"enabled"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Type        ThreatType             `json:"type"`
+	Severity    Severity               `json:"severity"`
+	Action      AlertAction            `json:"action"`
+	Enabled     bool                   `json:"enabled"`
 	Parameters  map[string]interface{} `json:"parameters"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
 }
 
 // SystemMetrics contains overall system performance metrics
@@ -191,11 +208,12 @@ type SystemMetrics struct {
 
 // DashboardState represents the current state for the web dashboard
 type DashboardState struct {
-	Metrics     SystemMetrics   `json:"metrics"`
-	TopFlows    []FlowMetrics   `json:"top_flows"`
+	Metrics       SystemMetrics `json:"metrics"`
+	TopFlows      []FlowMetrics `json:"top_flows"`
 	RecentThreats []ThreatEvent `json:"recent_threats"`
-	ActiveRules []ThreatRule    `json:"active_rules"`
-	Timestamp   time.Time       `json:"timestamp"`
+	RecentHTTP    []HTTPEvent   `json:"recent_http"`
+	ActiveRules   []ThreatRule  `json:"active_rules"`
+	Timestamp     time.Time     `json:"timestamp"`
 }
 
 // AlertConfig represents configuration for a specific alert channel

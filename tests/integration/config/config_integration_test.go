@@ -106,7 +106,7 @@ ebpf:
     interface: "lo"
     enable: invalid_boolean
 `,
-			expectError: true,
+			expectError:  true,
 			validateFunc: nil,
 		},
 		{
@@ -133,14 +133,14 @@ monitoring:
 			// Create temporary config file
 			tmpDir := t.TempDir()
 			configFile := filepath.Join(tmpDir, "config.yaml")
-			
+
 			if err := os.WriteFile(configFile, []byte(tc.configData), 0644); err != nil {
 				t.Fatalf("Failed to write config file: %v", err)
 			}
 
 			// Load configuration
 			cfg, err := config.LoadFromFile(configFile)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
@@ -276,7 +276,7 @@ func TestConfigIntegration_ComponentInitialization(t *testing.T) {
 func TestConfigIntegration_DefaultConfiguration(t *testing.T) {
 	// Test that default configuration is valid and usable
 	cfg := config.DefaultConfig()
-	
+
 	if cfg == nil {
 		t.Fatal("DefaultConfig() returned nil")
 	}
@@ -500,10 +500,10 @@ func TestConfigIntegration_PortBindingValidation(t *testing.T) {
 		expectError bool
 	}{
 		{":8080", false},
-		{":0", false},    // Random port
-		{":80", false},   // May fail if not privileged
+		{":0", false},  // Random port
+		{":80", false}, // May fail if not privileged
 		{":65535", false},
-		{":99999", false}, // High port - should work
+		{":99999", false},  // High port - should work
 		{"invalid", false}, // Dashboard creation doesn't validate format
 	}
 
@@ -529,7 +529,7 @@ func TestConfigIntegration_PortBindingValidation(t *testing.T) {
 			// Create dashboard with this config
 			mockProcessor := &MockProcessor{}
 			dash, err := dashboard.New(cfg, mockProcessor)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for port %s", tc.port)
@@ -554,8 +554,9 @@ func TestConfigIntegration_PortBindingValidation(t *testing.T) {
 // MockProcessor for testing
 type MockProcessor struct{}
 
-func (m *MockProcessor) GetStats() models.SystemMetrics { return models.SystemMetrics{} }
-func (m *MockProcessor) GetTopFlows(limit int) []models.FlowMetrics { return nil }
+func (m *MockProcessor) GetStats() models.SystemMetrics                  { return models.SystemMetrics{} }
+func (m *MockProcessor) GetTopFlows(limit int) []models.FlowMetrics      { return nil }
 func (m *MockProcessor) GetRecentThreats(limit int) []models.ThreatEvent { return nil }
-func (m *MockProcessor) GetAlertStats() interface{} { return nil }
-func (m *MockProcessor) GetActiveRules() []models.ThreatRule { return nil }
+func (m *MockProcessor) GetRecentHTTP(limit int) []models.HTTPEvent      { return nil }
+func (m *MockProcessor) GetAlertStats() interface{}                      { return nil }
+func (m *MockProcessor) GetActiveRules() []models.ThreatRule             { return nil }
