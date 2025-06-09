@@ -423,7 +423,7 @@ func (wc *WebhookChannel) formatWebhookPayload(event *models.ThreatEvent) []byte
 						"short": true,
 					},
 				},
-				"footer": "eBPF Network Security Monitor",
+				"footer": "FlowHawk - eBPF Network Security Monitor",
 				"ts": event.Timestamp.Unix(),
 			},
 		},
