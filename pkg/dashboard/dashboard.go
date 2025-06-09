@@ -120,7 +120,7 @@ func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛡️ eBPF Network Security Monitor</h1>
+            <h1>FlowHawk - eBPF Network Security Monitor</h1>
             <p>Real-time network monitoring and threat detection</p>
         </div>
         
